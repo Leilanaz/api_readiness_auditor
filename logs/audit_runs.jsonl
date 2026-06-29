@@ -1,0 +1,8 @@
+{"timestamp": "2026-06-29T04:46:05.153904+00:00", "source": "OAI/learn.openapis.org/examples/v3.0/petstore.yaml", "status": "success", "operations_checked": 3, "findings_count": 0}
+{"timestamp": "2026-06-29T04:55:24.718873+00:00", "source": "OAI/learn.openapis.org/examples/v3.0/petstore.yaml", "status": "success", "operations_checked": 3, "findings_count": 0}
+{"timestamp": "2026-06-29T05:10:08.517865+00:00", "source": "OAI/learn.openapis.org/examples/v3.0/petstore.yaml", "status": "success", "operations_checked": 3, "findings_count": 0}
+{"timestamp": "2026-06-29T05:29:48.976887+00:00", "source": "OAI/learn.openapis.org/examples/v3.0/petstore.yaml", "status": "success", "operations_checked": 3, "findings_count": 0}
+{"timestamp": "2026-06-29T05:40:14.860200+00:00", "source": "OAI/learn.openapis.org/examples/v3.0/petstore.yaml", "status": "success", "operations_checked": 3, "findings_count": 0}
+{"timestamp": "2026-06-29T05:50:24.347465+00:00", "source": "OAI/learn.openapis.org/examples/v3.0/petstore.yaml", "status": "success", "operations_checked": 3, "findings_count": 0}
+{"timestamp": "2026-06-29T05:50:52.368495+00:00", "source": "OAI/learn.openapis.org/examples/v3.0/does-not-exist.yaml", "status": "failed", "operations_checked": 0, "findings_count": 0}
+{"timestamp": "2026-06-29T05:51:26.064819+00:00", "source": "OAI/learn.openapis.org/README.md", "status": "failed", "operations_checked": 0, "findings_count": 0}
