@@ -1,7 +1,11 @@
 import argparse
 
 
-from api_auditor.fetchers import create_github_api_url, retrieve_github_api_spec
+from api_auditor.fetchers import (
+    create_github_api_url,
+    parse_github_browser_url,
+    retrieve_github_api_spec,
+)
 from api_auditor.openapi import extract_operations, get_spec_metadata
 from api_auditor.rules import (
     find_missing_error_responses,
@@ -17,18 +21,51 @@ def main():
     parser = argparse.ArgumentParser(
         description="Audit an OpenAPI spec from GitHub for integration-readiness issues."
     )
-    parser.add_argument("--owner", required=True)
-    parser.add_argument("--repo", required=True)
-    parser.add_argument("--path", required=True)
+    parser.add_argument("--owner", required=False)
+    parser.add_argument("--repo", required=False)
+    parser.add_argument("--path", required=False)
     parser.add_argument("--ref", required=False)
+    parser.add_argument("--github-url", required=False)
     parser.add_argument("--ai-summary", action="store_true")
 
     args = parser.parse_args()
-    owner = args.owner
-    repo = args.repo
-    path = args.path
-    ref = args.ref
     ai_summary = args.ai_summary
+
+    if args.github_url and (args.owner or args.repo or args.path):
+        parser.error("Use either --github-url or --owner/--repo/--path, not both.")
+
+    if args.github_url:
+        parsed_github_url = parse_github_browser_url(args.github_url)
+
+        if parsed_github_url is None:
+            return
+
+        owner = parsed_github_url["owner"]
+        repo = parsed_github_url["repo"]
+        path = parsed_github_url["path"]
+        ref = args.ref or parsed_github_url["ref"]
+
+    else:
+        missing_args = []
+
+        if not args.owner:
+            missing_args.append("--owner")
+        if not args.repo:
+            missing_args.append("--repo")
+        if not args.path:
+            missing_args.append("--path")
+
+        if missing_args:
+            parser.error(
+                "GitHub mode requires "
+                + ", ".join(missing_args)
+                + ". Or use --github-url."
+            )
+
+        owner = args.owner
+        repo = args.repo
+        path = args.path
+        ref = args.ref
 
     github_url = create_github_api_url(owner, repo, path)
     spec = retrieve_github_api_spec(github_url, ref=ref)

@@ -1,8 +1,8 @@
 # API Readiness Auditor
 
-API Readiness Auditor is a small CLI tool that fetches an OpenAPI/Swagger spec from GitHub, audits it for integration-readiness issues, prints a readable report, optionally generates an AI summary, and writes a JSONL audit log.
+API Readiness Auditor is a CLI tool that fetches an OpenAPI/Swagger spec from GitHub, audits it for integration-readiness issues, prints a readable report, writes a JSONL audit log, and optionally generates an AI summary of the deterministic findings.
 
-The goal is not to build a full OpenAPI validator. The goal is to provide a practical first-pass check that helps an API-facing engineer understand whether a spec is ready for SDK generation, documentation, or agent-facing tooling.
+The goal is not to build a full OpenAPI validator. The goal is to provide a practical first-pass readiness check that helps an API-facing engineer understand whether a spec is ready for SDK generation, documentation, or agent-facing tooling.
 
 ---
 
@@ -41,8 +41,11 @@ The output is intended to be useful for a customer-facing technical conversation
 The CLI:
 
 * Fetches an OpenAPI/Swagger file from GitHub using the GitHub Contents API.
+* Supports two GitHub input styles:
+
+  * explicit `--owner`, `--repo`, `--path`, and optional `--ref`
+  * normal GitHub browser file URLs through `--github-url`
 * Supports optional GitHub authentication through `GITHUB_TOKEN`.
-* Supports an optional GitHub `ref` for auditing a specific branch, tag, or commit.
 * Decodes the GitHub API response from base64 into text.
 * Parses the file as YAML/JSON.
 * Checks that the file looks like an OpenAPI/Swagger spec.
@@ -86,6 +89,13 @@ Do not commit real API keys or tokens to the repository. Set them locally as env
 
 ## Installation
 
+Clone the repository:
+
+```bash
+git clone https://github.com/Leilanaz/api_readiness_auditor
+cd api_readiness_auditor
+```
+
 Create and activate a virtual environment:
 
 ```bash
@@ -103,16 +113,13 @@ pip install -r requirements.txt
 
 ## How to run
 
-Run against a public OpenAPI spec in GitHub:
+The tool supports two ways to identify a GitHub OpenAPI spec.
 
-```bash
-python -m api_auditor.main \
-  --owner OAI \
-  --repo learn.openapis.org \
-  --path examples/v3.0/petstore.yaml
-```
+---
 
-Run against a specific branch, tag, or commit:
+### Option 1: Use explicit GitHub fields
+
+This was the original MVP interface:
 
 ```bash
 python -m api_auditor.main \
@@ -122,23 +129,74 @@ python -m api_auditor.main \
   --ref main
 ```
 
-Run with optional AI summary:
+The fields are:
+
+```text
+--owner   GitHub repository owner or organization
+--repo    GitHub repository name
+--path    Path to the OpenAPI/Swagger file inside the repository
+--ref     Optional branch, tag, or commit SHA
+```
+
+---
+
+### Option 2: Use a normal GitHub browser URL
+
+The tool also supports a normal GitHub file URL:
 
 ```bash
 python -m api_auditor.main \
-  --owner OAI \
-  --repo learn.openapis.org \
-  --path examples/v3.0/petstore.yaml \
+  --github-url https://github.com/OAI/learn.openapis.org/blob/main/examples/v3.0/petstore.yaml
+```
+
+This is more user-friendly because a customer is more likely to paste a GitHub URL than manually separate the owner, repo, branch, and file path.
+
+The supported URL format is:
+
+```text
+https://github.com/{owner}/{repo}/blob/{ref}/{path}
+```
+
+For example:
+
+```text
+https://github.com/OAI/learn.openapis.org/blob/main/examples/v3.0/petstore.yaml
+```
+
+is parsed into:
+
+```text
+owner = OAI
+repo = learn.openapis.org
+ref = main
+path = examples/v3.0/petstore.yaml
+```
+
+After parsing the URL, the rest of the audit pipeline stays the same.
+
+---
+
+### Run with optional AI summary
+
+```bash
+python -m api_auditor.main \
+  --github-url https://github.com/OAI/learn.openapis.org/blob/main/examples/v3.0/petstore.yaml \
   --ai-summary
 ```
+
+`--ai-summary` requires:
+
+```bash
+export ANTHROPIC_API_KEY="your_anthropic_api_key_here"
+```
+
+The main audit works without an Anthropic API key.
 
 ---
 
 ## Example output
 
 ```text
-Success: GitHub returned the file metadata.
-
 API Operations Readiness Report
 
 Source: OAI/learn.openapis.org/examples/v3.0/petstore.yaml
@@ -158,7 +216,7 @@ With `--ai-summary`, the tool also prints a concise customer-readable summary of
 
 ## Example specs
 
-The `examples/` directory contains demo inputs for testing and review.
+This repository includes an `examples/` directory with sample files that can be used to test and demo the tool.
 
 ```text
 examples/
@@ -167,56 +225,274 @@ examples/
   not_openapi.yaml
 ```
 
-### 1. Success example
+These files are intentionally small so the behavior of the audit rules is easy to understand.
 
-`examples/success_openapi.yaml`
 
-A clean OpenAPI spec that should pass the current audit rules.
+
+---
+
+### 1. Success case
+
+File:
+
+```text
+examples/success_openapi.yaml
+```
+
+This file contains a clean OpenAPI spec. Each operation includes:
+
+* `operationId`
+* operation-level `summary` and `description`
+* documented success responses
+* documented error responses
+
+Run with explicit fields:
+
+```bash
+python -m api_auditor.main \
+  --owner Leilanaz \
+  --repo api_readiness_auditor \
+  --path examples/success_openapi.yaml
+```
+
+Run with GitHub URL:
+
+```bash
+python -m api_auditor.main \
+  --github-url https://github.com/Leilanaz/api_readiness_auditor/blob/main/examples/success_openapi.yaml
+```
 
 Expected result:
 
 ```text
+API Operations Readiness Report
+
+Source: Leilanaz/api_readiness_auditor/examples/success_openapi.yaml
+API title: Clean Payments API
+API version: 1.0.0
+Spec version: 3.0.0
+
 Operations checked: 2
 Findings: 0
 
 No issues found.
 ```
 
-### 2. Partial issues example
+This shows the happy path: the file is fetched successfully, parsed as OpenAPI, audited, and no issues are found.
 
-`examples/partial_issues_openapi.yaml`
+---
 
-A valid OpenAPI-shaped spec with missing operation IDs, missing operation explanations, and missing error responses.
+### 2. Partial issues case
 
-Expected result:
+File:
 
 ```text
-Findings: several issues detected
+examples/partial_issues_openapi.yaml
 ```
 
-This is useful for demonstrating that the tool does more than pass the happy path.
+This file is still shaped like an OpenAPI spec, but it intentionally has integration-readiness issues:
 
-### 3. Failure example
+* some operations are missing `operationId`
+* some operations are missing operation-level `summary` or `description`
+* some operations only document success responses and do not document any `4xx`, `5xx`, or `default` error response
 
-`examples/not_openapi.yaml`
+Run with explicit fields:
 
-A valid YAML file that is not an OpenAPI/Swagger spec.
+```bash
+python -m api_auditor.main \
+  --owner Leilanaz \
+  --repo api_readiness_auditor \
+  --path examples/partial_issues_openapi.yaml
+```
+
+Run with GitHub URL:
+
+```bash
+python -m api_auditor.main \
+  --github-url https://github.com/Leilanaz/api_readiness_auditor/blob/main/examples/partial_issues_openapi.yaml
+```
+
+Expected result, assuming the example file matches the sample version created for this project:
+
+```text
+API Operations Readiness Report
+
+Source: Leilanaz/api_readiness_auditor/examples/partial_issues_openapi.yaml
+API title: Problematic Payments API
+API version: 1.0.0
+Spec version: 3.0.0
+
+Operations checked: 3
+Findings: 7
+
+missing_operation_id GET /payments
+Operation is missing operationId
+
+missing_operation_id POST /refunds
+Operation is missing operationId
+
+missing_operation_explanation POST /payments
+Operation is missing both summary and operation-level description
+
+missing_operation_explanation POST /refunds
+Operation is missing both summary and operation-level description
+
+missing_error_response GET /payments
+Operation does not document any 4xx, 5xx, or default error response
+
+missing_error_response POST /payments
+Operation does not document any 4xx, 5xx, or default error response
+
+missing_error_response POST /refunds
+Operation does not document any 4xx, 5xx, or default error response
+```
+
+This is the best demo file because it shows that the tool can find real issues, not just pass a clean spec.
+
+The exact order of findings depends on the order the rules are run in `main.py`. The expected finding count and finding types should match.
+
+---
+
+### 3. Failure case
+
+File:
+
+```text
+examples/not_openapi.yaml
+```
+
+This file is valid YAML, but it is not an OpenAPI or Swagger spec. It is used to demonstrate graceful failure handling.
+
+Run with explicit fields:
+
+```bash
+python -m api_auditor.main \
+  --owner Leilanaz \
+  --repo api_readiness_auditor \
+  --path examples/not_openapi.yaml
+```
+
+Run with GitHub URL:
+
+```bash
+python -m api_auditor.main \
+  --github-url https://github.com/Leilanaz/api_readiness_auditor/blob/main/examples/not_openapi.yaml
+```
 
 Expected result:
 
 ```text
 Error: File does not look like an OpenAPI/Swagger spec.
-Audit failed because the OpenAPI spec could not be retrieved.
 ```
 
-After pushing this repository to GitHub, you can run the tool against your own examples:
+This shows that the tool does not blindly audit any YAML file. It checks whether the parsed content looks like an OpenAPI/Swagger document before continuing.
+
+---
+
+## Testing commands used during development
+
+These are the main commands used to test the tool.
+
+---
+
+### Public GitHub OpenAPI spec with explicit fields
 
 ```bash
 python -m api_auditor.main \
-  --owner YOUR_USERNAME \
-  --repo API-readiness-auditor \
-  --path examples/partial_issues_openapi.yaml
+  --owner OAI \
+  --repo learn.openapis.org \
+  --path examples/v3.0/petstore.yaml \
+  --ref main
 ```
+
+Expected result:
+
+```text
+Operations checked: 3
+Findings: 0
+
+No issues found.
+```
+
+---
+
+### Public GitHub OpenAPI spec with browser URL
+
+```bash
+python -m api_auditor.main \
+  --github-url https://github.com/OAI/learn.openapis.org/blob/main/examples/v3.0/petstore.yaml
+```
+
+Expected result:
+
+```text
+Operations checked: 3
+Findings: 0
+
+No issues found.
+```
+
+---
+
+### Public GitHub OpenAPI spec with AI summary
+
+```bash
+python -m api_auditor.main \
+  --github-url https://github.com/OAI/learn.openapis.org/blob/main/examples/v3.0/petstore.yaml \
+  --ai-summary
+```
+
+Expected result:
+
+```text
+Operations checked: 3
+Findings: 0
+
+No issues found.
+
+AI Summary
+
+...
+```
+
+The exact AI summary text may vary because it is generated by Claude. The audit findings should remain deterministic.
+
+---
+
+### Bad GitHub URL shape
+
+```bash
+python -m api_auditor.main \
+  --github-url https://github.com/OAI/learn.openapis.org
+```
+
+Expected result:
+
+```text
+Error: GitHub URL is too short.
+```
+
+or a similar clear parsing error.
+
+---
+
+### Nonexistent GitHub file
+
+```bash
+python -m api_auditor.main \
+  --owner OAI \
+  --repo learn.openapis.org \
+  --path examples/v3.0/does-not-exist.yaml
+```
+
+Expected result:
+
+```text
+Error: GitHub file not found.
+Audit failed because the OpenAPI spec could not be retrieved.
+```
+
+This tests that the tool handles GitHub 404 responses gracefully.
 
 ---
 
@@ -228,7 +504,7 @@ Project structure:
 api_auditor/
   __init__.py
   main.py          CLI orchestration
-  fetchers.py      GitHub API fetching, auth, decoding, and parsing
+  fetchers.py      GitHub API fetching, auth, decoding, parsing, URL parsing
   openapi.py       OpenAPI metadata and operation extraction
   rules.py         Deterministic audit rules
   report.py        Terminal report formatting
@@ -240,6 +516,10 @@ High-level flow:
 
 ```text
 CLI arguments
+  ↓
+Resolve GitHub input
+  ↓
+If --github-url is provided, parse owner/repo/ref/path from URL
   ↓
 Build GitHub Contents API URL
   ↓
@@ -266,9 +546,9 @@ Optionally generate AI summary
 
 ---
 
-## Why the tool asks for owner, repo, path, and ref
+## GitHub input design
 
-The current CLI accepts:
+The first version of the tool accepted:
 
 ```text
 owner
@@ -277,60 +557,84 @@ path
 optional ref
 ```
 
-Example:
-
-```bash
---owner OAI \
---repo learn.openapis.org \
---path examples/v3.0/petstore.yaml \
---ref main
-```
-
-This maps directly to the GitHub Contents API:
+This was intentional because those fields map directly to the GitHub Contents API:
 
 ```text
 https://api.github.com/repos/{owner}/{repo}/contents/{path}
 ```
 
-This was an intentional MVP design choice. Asking for structured GitHub fields makes the GitHub API integration explicit and avoids adding URL parsing complexity in the first version.
+That made the GitHub API integration simple and explicit.
 
-A more user-friendly future version would also accept a normal GitHub browser URL, such as:
+However, a real customer is more likely to provide a normal GitHub browser URL, such as:
 
 ```text
 https://github.com/OAI/learn.openapis.org/blob/main/examples/v3.0/petstore.yaml
 ```
 
-and internally parse it into:
+So the tool now supports `--github-url` as a more user-friendly input.
+
+The current design supports both:
 
 ```text
-owner = OAI
-repo = learn.openapis.org
-ref = main
-path = examples/v3.0/petstore.yaml
+Developer/API-friendly input:
+--owner OAI --repo learn.openapis.org --path examples/v3.0/petstore.yaml --ref main
+
+Customer-friendly input:
+--github-url https://github.com/OAI/learn.openapis.org/blob/main/examples/v3.0/petstore.yaml
 ```
 
-For this MVP, I chose the explicit version because it is simpler, reliable, and directly reflects how the GitHub API is called.
+The user should provide either `--github-url` or `--owner/--repo/--path`, not both.
+
+This design keeps the original simple API-shaped interface while adding a better customer-facing input path.
+
+---
+
+## Current limitations of GitHub URL support
+
+The current `--github-url` support is intentionally limited to normal GitHub file URLs in this format:
+
+```text
+https://github.com/{owner}/{repo}/blob/{ref}/{path}
+```
+
+It does not yet support every possible GitHub URL format, such as:
+
+```text
+raw.githubusercontent.com URLs
+GitHub directory URLs containing /tree/
+GitHub pull request URLs
+GitHub gist URLs
+non-GitHub URLs
+```
+
+A future version could support those formats by adding more URL parsing logic or by adding a separate raw URL fetcher.
 
 ---
 
 ## How the GitHub file is read
 
-The tool does not scrape or visually read a GitHub webpage. It calls GitHub’s REST API programmatically.
+The tool does not scrape or visually read a GitHub webpage.
+
+It calls GitHub’s REST API programmatically.
 
 The flow is:
 
 ```text
-Build GitHub API URL
+User provides GitHub URL or owner/repo/path
   ↓
-Send HTTP GET request
+Tool extracts owner, repo, path, and optional ref
   ↓
-GitHub returns JSON metadata
+Tool builds the GitHub Contents API URL
   ↓
-The file content is returned as base64-encoded text
+Tool sends an HTTP GET request to GitHub
   ↓
-The tool decodes base64 into UTF-8 text
+GitHub returns JSON metadata and base64-encoded file content
   ↓
-The text is parsed as YAML/JSON
+Tool decodes the content into UTF-8 text
+  ↓
+Tool parses the text as YAML/JSON
+  ↓
+Tool audits the parsed OpenAPI structure
 ```
 
 So the tool is closer to downloading the file through an API than viewing a website.
@@ -350,6 +654,8 @@ https://api.github.com/repos/OAI/learn.openapis.org/contents/examples/v3.0/petst
 ## Audit rules
 
 The current version includes three deterministic audit rules.
+
+---
 
 ### 1. Missing `operationId`
 
@@ -378,6 +684,8 @@ This rule checks:
 Does each operation have operationId?
 ```
 
+---
+
 ### 2. Missing operation explanation
 
 This rule checks whether an operation has either:
@@ -401,6 +709,8 @@ post:
 This matters because a developer or agent needs to understand when and why to use the operation.
 
 The tool intentionally checks operation-level `summary` and `description`, not response-level descriptions. A response description like `"200": "OK"` does not explain what the operation itself does.
+
+---
 
 ### 3. Missing error response documentation
 
@@ -495,6 +805,8 @@ A production version would improve this by:
 
 For this local CLI, authentication is handled through environment variables.
 
+---
+
 ### GitHub
 
 The tool optionally reads:
@@ -506,6 +818,8 @@ export GITHUB_TOKEN="your_github_token_here"
 If present, it sends the token in the GitHub API request headers. If not present, it makes unauthenticated requests, which are sufficient for the default public-repository demo.
 
 I chose this because it is simple, secure enough for a local CLI, and avoids hardcoding secrets.
+
+---
 
 ### Anthropic
 
@@ -522,6 +836,8 @@ The key is only needed when using:
 ```
 
 The main audit does not require Anthropic credentials.
+
+---
 
 ### Why not OAuth?
 
@@ -565,7 +881,9 @@ Audit runs on backend
 Report is shown in UI
 ```
 
-For AI summaries, there are two possible models:
+For AI summaries, there are two possible models.
+
+---
 
 ### Platform-owned Anthropic key
 
@@ -581,6 +899,8 @@ Cons:
 
 * The platform pays the LLM cost
 * Requires usage limits and abuse prevention
+
+---
 
 ### Bring-your-own-key
 
@@ -655,7 +975,6 @@ If the Claude call fails, the audit should still succeed. The LLM feature is opt
 
 ---
 
-
 ## AI usage while building
 
 I used AI as a learning, debugging, and code-review assistant while building this project.
@@ -677,10 +996,11 @@ The optional Claude integration inside the project is also intentionally limited
 
 This separation was intentional: AI helped improve the code, reasoning, and communication, but the correctness of the audit comes from explicit, inspectable rules.
 
-
 ---
 
 ## Tradeoffs
+
+---
 
 ### Why a CLI?
 
@@ -693,23 +1013,33 @@ A CLI is:
 * Easy to explain
 * Appropriate for developer tooling
 
+---
+
 ### Why GitHub first?
 
 Many API specs are stored in GitHub. Using GitHub also gives the project a real external API integration with authentication, rate limits, refs, errors, and file metadata.
 
-### Why explicit owner/repo/path instead of URL parsing?
+---
 
-Explicit arguments map directly to the GitHub Contents API. This reduced scope and made the API interaction easier to understand.
+### Why explicit owner/repo/path first?
 
-A future version should accept normal GitHub browser URLs for better usability.
+Explicit arguments map directly to the GitHub Contents API. This reduced the initial scope and made the API interaction easier to understand.
+
+After the MVP worked, I added support for normal GitHub browser URLs to improve customer ergonomics.
+
+---
 
 ### Why only three audit rules?
 
 The goal was not to build a complete OpenAPI validator. I chose three high-signal rules that directly affect SDKs, docs, and agent tooling.
 
+---
+
 ### Why JSONL instead of a database?
 
 A database would be unnecessary for the MVP. JSONL provides simple local observability without adding infrastructure.
+
+---
 
 ### Why optional AI?
 
@@ -721,9 +1051,9 @@ The AI feature improves communication, but it should not be required for correct
 
 With more time, I would add:
 
-* Support for normal GitHub browser URLs
 * Support for local files
 * Support for direct raw URLs
+* Support for more GitHub URL formats
 * More OpenAPI validation rules
 * Duplicate `operationId` detection
 * Auth/security scheme checks
@@ -754,6 +1084,7 @@ The repository should not include:
 real GitHub tokens
 real Anthropic API keys
 private customer specs
+runtime logs with sensitive repo information
 ```
 
 Use environment variables locally instead.
@@ -768,3 +1099,62 @@ __pycache__/
 .DS_Store
 logs/audit_runs.jsonl
 ```
+
+---
+
+## Quick demo script
+
+A simple demo flow:
+
+1. Run the clean example and show that it passes.
+
+```bash
+python -m api_auditor.main \
+  --github-url https://github.com/Leilanaz/api_readiness_auditor/blob/main/examples/success_openapi.yaml
+```
+
+2. Run the partial issues example and show that the tool finds problems.
+
+```bash
+python -m api_auditor.main \
+  --github-url https://github.com/Leilanaz/api_readiness_auditor/blob/main/examples/partial_issues_openapi.yaml
+```
+
+3. Run the non-OpenAPI example and show graceful failure.
+
+```bash
+python -m api_auditor.main \
+  --github-url https://github.com/Leilanaz/api_readiness_auditor/blob/main/examples/not_openapi.yaml
+```
+
+4. Run a public third-party OpenAPI spec.
+
+```bash
+python -m api_auditor.main \
+  --github-url https://github.com/OAI/learn.openapis.org/blob/main/examples/v3.0/petstore.yaml
+```
+
+5. Optionally run with AI summary.
+
+```bash
+python -m api_auditor.main \
+  --github-url https://github.com/OAI/learn.openapis.org/blob/main/examples/v3.0/petstore.yaml \
+  --ai-summary
+```
+
+---
+
+## Project summary
+
+This project is a small, focused API readiness tool. It demonstrates:
+
+* External API integration with GitHub
+* OpenAPI parsing and operation extraction
+* Deterministic audit logic
+* Clear terminal reporting
+* Lightweight observability through JSONL logs
+* Optional AI-assisted communication
+* Practical error handling
+* Clear design tradeoffs
+
+The main design principle is that the core audit should be deterministic, explainable, and easy to defend. The AI feature is optional and only helps communicate the results.
