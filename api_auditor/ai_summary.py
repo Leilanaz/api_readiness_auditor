@@ -1,5 +1,6 @@
 from anthropic import Anthropic
 
+
 def generate_ai_summary(metadata, operations, findings):
     try:
         client = Anthropic()
@@ -22,9 +23,7 @@ def generate_ai_summary(metadata, operations, findings):
         response = client.messages.create(
             model="claude-haiku-4-5-20251001",
             max_tokens=250,
-            messages=[
-                {"role": "user", "content": prompt}
-            ],
+            messages=[{"role": "user", "content": prompt}],
         )
 
         return response.content[0].text

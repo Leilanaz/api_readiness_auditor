@@ -4,9 +4,11 @@ import os
 import requests
 import yaml
 
+
 def create_github_api_url(owner, repo, path):
-    github_url = f'https://api.github.com/repos/{owner}/{repo}/contents/{path}'
+    github_url = f"https://api.github.com/repos/{owner}/{repo}/contents/{path}"
     return github_url
+
 
 def retrieve_github_api_spec(github_url, ref=None):
     headers = {
@@ -15,7 +17,7 @@ def retrieve_github_api_spec(github_url, ref=None):
     }
     github_token = os.getenv("GITHUB_TOKEN")
     if github_token:
-        headers["Authorization"] = f'Bearer {github_token}'
+        headers["Authorization"] = f"Bearer {github_token}"
     params = {}
     if ref:
         params["ref"] = ref
@@ -39,5 +41,5 @@ def retrieve_github_api_spec(github_url, ref=None):
             spec = yaml.safe_load(decoded_content)
         except yaml.YAMLError as error:
             print(f"Error: Could not parse the file as YAML or JSON: {error}")
-            return 
+            return
     return spec
