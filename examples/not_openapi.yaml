@@ -1,0 +1,5 @@
+project: This is not an OpenAPI spec
+owner: demo
+notes:
+  - This file is valid YAML.
+  - But it does not contain openapi, swagger, or paths.

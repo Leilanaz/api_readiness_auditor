@@ -1,0 +1,23 @@
+openapi: 3.0.0
+info:
+  title: Problematic Payments API
+  version: 1.0.0
+paths:
+  /payments:
+    get:
+      summary: List payments
+      responses:
+        "200":
+          description: Payments returned successfully
+
+    post:
+      operationId: createPayment
+      responses:
+        "201":
+          description: Payment created successfully
+
+  /refunds:
+    post:
+      responses:
+        "200":
+          description: Refund created successfully

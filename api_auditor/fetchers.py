@@ -37,8 +37,10 @@ def retrieve_github_api_spec(github_url, ref=None):
         encoded_content = data["content"]
         decoded_bytes = base64.b64decode(encoded_content)
         decoded_content = decoded_bytes.decode("utf-8")
+        print("decoded: ", type(decoded_content))
         try:
             spec = yaml.safe_load(decoded_content)
+            print("yaml spec: ",type(spec))
         except yaml.YAMLError as error:
             print(f"Error: Could not parse the file as YAML or JSON: {error}")
             return

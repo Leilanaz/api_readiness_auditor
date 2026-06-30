@@ -1,0 +1,28 @@
+openapi: 3.0.0
+info:
+  title: Clean Payments API
+  version: 1.0.0
+paths:
+  /payments:
+    get:
+      operationId: listPayments
+      summary: List payments
+      description: Returns a list of payments for the account.
+      responses:
+        "200":
+          description: Payments returned successfully
+        "400":
+          description: Invalid request
+        "500":
+          description: Internal server error
+    post:
+      operationId: createPayment
+      summary: Create a payment
+      description: Creates a new payment for a customer.
+      responses:
+        "201":
+          description: Payment created successfully
+        "400":
+          description: Invalid payment request
+        "500":
+          description: Internal server error
